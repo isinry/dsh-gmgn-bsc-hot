@@ -1,0 +1,78 @@
+# ============================================================================
+# dsh-bsc-hot —— DSH bundle patch
+# ============================================================================
+# Mounts the BSC 5-minute-volume tracker:
+#   * Host half  (lib/index.js)  polls GMGN OpenAPI and serves /api/bsc-hot/top
+#   * Web half   (lib/client.js) renders the left-rail panel: two columns, polls once/s
+#
+# Install:
+#   plugin_manager install_bundle  target=link:/Users/sinry/.dsh/plugins/dsh-bsc-hot
+# ============================================================================
+
+- insert:
+    - id: dsh-bsc-hot
+      name: dsh-bsc-hot
+      config:
+        # Chain / window / depth of the leaderboard.
+        chain: bsc
+        interval: 5m
+        limit: 20
+
+        # Market-cap ceiling in USD: tokens above it are filtered out, both
+        # server-side (`max_marketcap`) and again in the Host. 0 disables it.
+        maxMarketCapUsd: 5000000
+
+        # Keep only tokens held by at least this many KOL wallets (GMGN's
+        # `renowned_count`). Both columns use it; 0 disables the gate.
+        minKolCount: 1
+
+        # Launch platforms to hide, matched as lowercase substrings of GMGN's
+        # `launchpad_platform`: "pancake" hides pool_pancake / pancakeswap.
+        # Empty list (`[]`) shows every platform.
+        excludePlatforms: ['pancake']
+
+        # Also hide tokens whose `launchpad_platform` is empty (plain pools, not a
+        # launchpad mint). false keeps them.
+        requirePlatform: true
+
+        # Honeypots (GMGN security verdict, or sell tax >= 50%) are dropped from the
+        # board. Set false to keep them visible, marked with a red tag.
+        filterHoneypot: true
+
+        # How long a security verdict is trusted before it is re-checked.
+        securityTtlMs: 600000
+
+        # One request scans this many tokens under the ceiling; the board keeps
+        # the first `limit` of them by 5m volume. Max 100 (60 keeps the response
+        # small enough that a refresh lands in well under two seconds).
+        scanLimit: 60
+
+        # Second column: exactly what
+        #   gmgn-cli market trending --chain bsc --interval 5m
+        # returns (no `order_by`), narrowed to the same market-cap ceiling and
+        # re-ordered by token creation time. The endpoint has no time-based sort,
+        # so a wide page is fetched and sorted in the Host.
+        timeScanLimit: 100
+        timeRefreshMs: 5000
+
+        # Native macOS notifications when a board's top 3 changes. Raised by the
+        # Host, so they still arrive with the panel closed.
+        notify: true
+
+        # Host refresh cadence in ms for the volume column. The Web panel polls
+        # at this cadence; each GMGN round trip takes ~1.5-2s, and the host keeps
+        # >=900ms between any two calls so bursts never trip the tier limit.
+        refreshMs: 1000
+
+        # Egress proxy. `null` = auto (HTTPS_PROXY/ALL_PROXY, else
+        # http://127.0.0.1:7890); "" = connect directly.
+        # Needed because Node's global fetch ignores HTTPS_PROXY on this machine.
+        proxy: null
+
+        # GMGN OpenAPI key. Empty = resolve from GMGN_API_KEY, then
+        # ~/.config/gmgn/.env (same file gmgn-cli uses).
+        apiKey: ''
+
+        # Diagnostics: append host-side events to debugFile (truncated at 2 MB).
+        debug: true
+        debugFile: /tmp/dsh-bsc-hot-debug.log
