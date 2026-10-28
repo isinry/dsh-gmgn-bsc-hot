@@ -1,8 +1,8 @@
 {
   "name": "dsh-bsc-hot",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
-  "description": "Right-sidebar tab that tracks the BSC top-20 tokens by 5-minute trading volume via GMGN OpenAPI, refreshing once per second; click a token to open gmgn.ai.",
+  "description": "DSH left-sidebar BSC top-20 tracker via GMGN OpenAPI: two live boards, desktop alerts, and an in-panel settings view for API/wallet keys and proxy; runs on macOS, Linux and Windows.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -22,6 +22,7 @@
   },
   "files": [
     "lib/index.js",
+    "lib/config-store.js",
     "lib/client.js",
     "cordis.patch.yml",
     "README.md"

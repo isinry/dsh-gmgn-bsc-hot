@@ -5,8 +5,8 @@
 #   * Host half  (lib/index.js)  polls GMGN OpenAPI and serves /api/bsc-hot/top
 #   * Web half   (lib/client.js) renders the left-rail panel: two columns, polls once/s
 #
-# Install:
-#   plugin_manager install_bundle  target=link:/Users/sinry/.dsh/plugins/dsh-bsc-hot
+# Install (any machine: the install target is wherever the checkout lives):
+#   plugin_manager install_bundle  target=link:<path-to-this-repo>
 # ============================================================================
 
 - insert:
@@ -55,8 +55,9 @@
         timeScanLimit: 100
         timeRefreshMs: 5000
 
-        # Native macOS notifications when a board's top 3 changes. Raised by the
-        # Host, so they still arrive with the panel closed.
+        # Desktop notifications when a board's top 3 changes. Raised by the Host,
+        # so they still arrive with the panel closed. macOS uses terminal-notifier
+        # (clickable) or osascript, Linux uses notify-send, Windows uses PowerShell.
         notify: true
 
         # Host refresh cadence in ms for the volume column. The Web panel polls
@@ -64,15 +65,17 @@
         # >=900ms between any two calls so bursts never trip the tier limit.
         refreshMs: 1000
 
-        # Egress proxy. `null` = auto (HTTPS_PROXY/ALL_PROXY, else
-        # http://127.0.0.1:7890); "" = connect directly.
-        # Needed because Node's global fetch ignores HTTPS_PROXY on this machine.
+        # Egress proxy. `null` = auto (settings panel, then HTTPS_PROXY/ALL_PROXY,
+        # then http://127.0.0.1:7890); "" = connect directly.
+        # Node's global fetch ignores HTTPS_PROXY, so proxied calls shell out to curl.
         proxy: null
 
-        # GMGN OpenAPI key. Empty = resolve from GMGN_API_KEY, then
-        # ~/.config/gmgn/.env (same file gmgn-cli uses).
+        # GMGN OpenAPI key and optional wallet keys. Leave empty here and fill
+        # them in the panel's Settings view: the stored values win over this file,
+        # then GMGN_API_KEY / GMGN_PUBLIC_KEY / GMGN_PRIVATE_KEY from the
+        # environment or ~/.config/gmgn/.env (the file gmgn-cli uses).
         apiKey: ''
 
         # Diagnostics: append host-side events to debugFile (truncated at 2 MB).
-        debug: true
-        debugFile: /tmp/dsh-bsc-hot-debug.log
+        # The default path is <system temp>/dsh-bsc-hot-debug.log on every platform.
+        debug: false
