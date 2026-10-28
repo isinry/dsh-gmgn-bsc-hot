@@ -47,6 +47,8 @@ cordis.patch.yml bundle patch，含全部可调配置
 # plugin_manager install_bundle   target=link:/Users/sinry/Work/GMGNAgent
 ```
 
+首次加载时客户端会把自己所在的仓库路径注册为一个 GUI 工作区（每个浏览器 profile 只做一次），之后可在工作区里新建会话。
+
 装好后在 GUI 左侧栏点图表图标进入面板；`lib/client.js` 改动需要刷新页面，`lib/index.js` 改动随插件重装生效。
 
 ## 配置
