@@ -5,7 +5,7 @@ DSH 插件：左侧栏「BSC 热门」面板，两栏实时榜。
 - **左栏**：BSC 5m 成交额 Top20
 - **右栏**：GMGN 5m 热榜（`gmgn-cli market trending --chain bsc --interval 5m` 同样的结果）按**创建时间**倒序
 - 每秒刷新，点击任意代币用系统浏览器打开 `https://gmgn.ai/bsc/token/{address}`
-- 鼠标在任意代币行停留 2 秒弹出浮窗，内嵌 DexScreener 行情页（K 线、成交、流动性、交易记录）；浮窗可移入交互，离开 2 秒后淡出；DexScreener 未收录的新交易对回退为榜内数据
+- 鼠标在任意代币行停留 2 秒弹出浮窗：左侧是 DexScreener 的纯 K 线（1 分钟），顶部可一键复制代币地址/名称并跳转 X，右侧是同一份 DexScreener JSON 算出的中文详情（多窗口涨跌、成交额、买卖笔数、流动性/市值、全池流动性、主池占比、市值/FDV、交易场所与报价币、池龄、官网/社媒）；浮窗由面板层单独渲染（榜单每秒重排不会导致 iframe 重载），可移入交互，离开 2 秒后淡出；DexScreener 未收录的新交易对回退为榜内数据
 - Top3 成员变动时发系统通知（macOS / Linux / Windows），macOS 通知可点击回到面板并闪烁对应代币行
 - 面板内置「设置」：API Key、GMGN Ed25519 公钥/私钥、代理都在面板里填写，缺失时自动进入引导；没有密钥对时可一键生成，生成后公私钥只读；换台电脑不用改代码
 
@@ -33,7 +33,7 @@ cordis.patch.yml    bundle patch，含全部可调配置
 - 数据源 `GET https://openapi.gmgn.ai/v1/market/rank`，头 `X-APIKEY`，query 必带 `timestamp` 与**每次新生成**的 `client_id`（复用会 401 `AUTH_CLIENT_ID_REPLAYED`）。
 - 本机访问 GMGN 需代理（`http://127.0.0.1:7890`），且 Node 的全局 `fetch` 不读 `HTTPS_PROXY`，所以实际用 `curl --proxy` 发请求。
 - 限频：`/v1/market/rank` 权重 3，Free 档 5/5；全局请求门 `MIN_REQUEST_GAP_MS = 900`，单飞轮转（rank / 热榜 / security），1 req/s 长期稳定，2 req/s 立即 429 并封 IP。
-- 浮窗不走 GMGN API：GMGN 页面禁止被 iframe 嵌入（响应头 `X-Frame-Options: SAMEORIGIN` 与 CSP `frame-ancestors 'self'`），服务端抓取也会被 Cloudflare 403。浮窗改为在客户端调用免费的 `https://api.dexscreener.com/latest/dex/tokens/<address>` 选出流动性最深的 BSC 交易对，再嵌入 `https://dexscreener.com/bsc/<pair>?embed=1&theme=dark&interval=1&trades=1&info=1&loadChartSettings=0`（`interval=1` 为 1 分钟）；交易对缓存 5 分钟、未收录时 1 分钟后重试，悬停不消耗 GMGN 额度。
+- 浮窗不走 GMGN API：GMGN 页面禁止被 iframe 嵌入（响应头 `X-Frame-Options: SAMEORIGIN` 与 CSP `frame-ancestors 'self'`），服务端抓取也会被 Cloudflare 403。浮窗改为在客户端调用免费的 `https://api.dexscreener.com/latest/dex/tokens/<address>` 选出流动性最深的 BSC 交易对，再嵌入 `https://dexscreener.com/bsc/<pair>?embed=1&theme=dark&interval=1&trades=0&info=0&loadChartSettings=0`（`interval=1` 为 1 分钟，`trades=0&info=0` 让嵌入页直接打开纯 K 线，不弹 Info 标签）；交易对缓存 5 分钟、未收录时 1 分钟后重试，悬停不消耗 GMGN 额度。
 - 貔貅判定用 `GET /v1/token/security`：`is_honeypot` 为真、或 `sell_tax >= 0.5` 视为貔貅；结果缓存 10 分钟，未知不等于安全。
 - 通知：macOS 优先 `terminal-notifier`（可点击，点击把地址写入系统临时目录的 `dsh-bsc-hot-focus`，客户端轮询到 `focusAt` 后切面板并高亮），否则 `osascript`；Linux 用 `notify-send`；Windows 用 PowerShell Toast。
 - 设置：`GET/POST /api/bsc-hot/config` 读写凭据与代理，`POST /api/bsc-hot/config/test` 用一次最小请求验证 Key，`POST /api/bsc-hot/config/generate` 在没有密钥对时生成 Ed25519 密钥对；密钥只写入 `~/.dsh/dsh-bsc-hot/settings.json`；面板通过本地路由读取当前值并默认以 `*` 掩码显示，点眼睛才展开。
@@ -43,7 +43,7 @@ cordis.patch.yml    bundle patch，含全部可调配置
 
 - 入口：`sidebar.panellist`（id `dsh-bsc-hot`）+ `main` 面板。
 - 取数用相对路径 `fetch('api/bsc-hot/top')`，同源 cookie 鉴权；轮询放在插件层（不在组件里），切换面板不会中断。
-- 悬停浮窗：`onMouseEnter` 起 2 秒计时，到时查 DexScreener 交易对并渲染 560×590 浮窗（iframe 高 460，默认 1 分钟 K 线）；卡片 `position:fixed` 贴在行侧（越界翻到左边/上移），`pointer-events:auto`，移出后先完整保留 2 秒再淡出，移入卡片则取消关闭（进入 iframe 后不会误关）；DexScreener 未收录时展示榜内数据与 GMGN 跳转提示。
+- 悬停浮窗：`onMouseEnter` 起 2 秒计时，到时查 DexScreener 交易对并渲染 816×590 浮窗（左 K 线 iframe、右侧 230px 详情栏，都来自同一次 `/latest/dex/tokens/<address>` 响应）；卡片 `position:fixed` 贴在行侧（越界翻到左边/上移），`pointer-events:auto`，移出后先完整保留 2 秒再淡出，移入卡片则取消关闭（进入 iframe 后不会误关）；DexScreener 未收录时展示榜内数据与 GMGN 跳转提示。
 - GMGN logo 经 `wsrv.nl` 转成 PNG 才能用作通知附图（`gmgn.ai/external-res` 是 webp 且有 Cloudflare 挑战）。
 
 ## 安装
