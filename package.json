@@ -1,8 +1,8 @@
 {
   "name": "dsh-bsc-hot",
-  "version": "0.2.1",
+  "version": "0.2.8",
   "private": true,
-  "description": "DSH left-sidebar BSC top-20 tracker via GMGN OpenAPI: two live boards, desktop alerts, and an in-panel settings view for API/wallet keys and proxy; runs on macOS, Linux and Windows.",
+  "description": "DSH left-sidebar BSC top-20 tracker via GMGN OpenAPI: two live boards, desktop alerts, and an in-panel settings view for the GMGN API key, Ed25519 key pair and proxy; runs on macOS, Linux and Windows.",
   "type": "module",
   "engines": {
     "node": ">=22"
