@@ -2,8 +2,9 @@
 
 DSH 插件：左侧栏「BSC 热门」面板，两栏实时榜。
 
-- **左栏**：BSC 5m 成交额 Top20
-- **右栏**：GMGN 5m 热榜（`gmgn-cli market trending --chain bsc --interval 5m` 同样的结果）按**创建时间**倒序
+- **左栏**：BSC 成交额 Top20（面板顶部可切换 **1m / 5m**，选择会持久化）
+- **右栏**：GMGN 热榜（`gmgn-cli market trending --chain bsc --interval 1m|5m` 同样的结果）按**创建时间**倒序
+- 顶部标题右侧是 1m / 5m 分段开关：切换时 Host 清空两栏并按新周期重新拉取，面板标签、浮窗统计、系统通知标题都跟着当前周期变化；切换值写入 `~/.dsh/dsh-bsc-hot/settings.json`，重启后保持（`cordis.patch.yml` 的 `interval` 只是首次启动的默认值）
 - 每秒刷新，点击任意代币用系统浏览器打开 `https://gmgn.ai/bsc/token/{address}`
 - 鼠标在任意代币行停留 2 秒弹出浮窗：左侧是 DexScreener 的纯 K 线（1 分钟），顶部可一键复制代币地址/名称并跳转 X，右侧是同一份 DexScreener JSON 算出的中文详情（多窗口涨跌、成交额、买卖笔数、流动性/市值、全池流动性、主池占比、市值/FDV、交易场所与报价币、池龄、官网/社媒）；浮窗由面板层单独渲染（榜单每秒重排不会导致 iframe 重载），可移入交互，离开 2 秒后淡出；DexScreener 未收录的新交易对回退为榜内数据
 - Top3 成员变动时发系统通知（macOS / Linux / Windows），macOS 通知可点击回到面板并闪烁对应代币行
@@ -22,7 +23,7 @@ DSH 插件：左侧栏「BSC 热门」面板，两栏实时榜。
 ## 结构
 
 ```
-lib/index.js        Host 半：轮询 GMGN OpenAPI，暴露 top / open / config / config-test / generate 路由
+lib/index.js        Host 半：轮询 GMGN OpenAPI，暴露 top / interval / open / config / config-test / generate 路由
 lib/config-store.js 设置持久化：~/.dsh/dsh-bsc-hot/settings.json（0600，原子写）
 lib/client.js       Client 半：sidebar.panellist + main 面板、两栏渲染、设置视图
 cordis.patch.yml    bundle patch，含全部可调配置
@@ -33,6 +34,7 @@ cordis.patch.yml    bundle patch，含全部可调配置
 - 数据源 `GET https://openapi.gmgn.ai/v1/market/rank`，头 `X-APIKEY`，query 必带 `timestamp` 与**每次新生成**的 `client_id`（复用会 401 `AUTH_CLIENT_ID_REPLAYED`）。
 - 本机访问 GMGN 需代理（`http://127.0.0.1:7890`），且 Node 的全局 `fetch` 不读 `HTTPS_PROXY`，所以实际用 `curl --proxy` 发请求。
 - 限频：`/v1/market/rank` 权重 3，Free 档 5/5；全局请求门 `MIN_REQUEST_GAP_MS = 900`，单飞轮转（rank / 热榜 / security），1 req/s 长期稳定，2 req/s 立即 429 并封 IP。
+- 统计周期：`POST /api/bsc-hot/interval`（body `{ interval: '1m' | '5m' }`）是运行时的唯一写入点，白名单校验后先写 settings.json 再改内存：清空两栏快照、重置 Top3 基线与限频退避，并以 `intervalEpoch` 丢弃切换前发出的旧周期响应；`GET /api/bsc-hot/top` 的 `interval` / `intervals` 字段告诉面板当前周期与可选值。
 - 浮窗不走 GMGN API：GMGN 页面禁止被 iframe 嵌入（响应头 `X-Frame-Options: SAMEORIGIN` 与 CSP `frame-ancestors 'self'`），服务端抓取也会被 Cloudflare 403。浮窗改为在客户端调用免费的 `https://api.dexscreener.com/latest/dex/tokens/<address>` 选出流动性最深的 BSC 交易对，再嵌入 `https://dexscreener.com/bsc/<pair>?embed=1&theme=dark&interval=1&trades=0&info=0&loadChartSettings=0`（`interval=1` 为 1 分钟，`trades=0&info=0` 让嵌入页直接打开纯 K 线，不弹 Info 标签）；交易对缓存 5 分钟、未收录时 1 分钟后重试，悬停不消耗 GMGN 额度。
 - 貔貅判定用 `GET /v1/token/security`：`is_honeypot` 为真、或 `sell_tax >= 0.5` 视为貔貅；结果缓存 10 分钟，未知不等于安全。
 - 通知：macOS 优先 `terminal-notifier`（可点击，点击把地址写入系统临时目录的 `dsh-bsc-hot-focus`，客户端轮询到 `focusAt` 后切面板并高亮），否则 `osascript`；Linux 用 `notify-send`；Windows 用 PowerShell Toast。
@@ -65,7 +67,7 @@ cordis.patch.yml    bundle patch，含全部可调配置
 
 ## 配置
 
-业务参数（`refreshMs`、`timeRefreshMs`、`scanLimit`、`notify` 等）在 `cordis.patch.yml` 的 `config` 段。
+业务参数（`refreshMs`、`timeRefreshMs`、`scanLimit`、`notify` 等）在 `cordis.patch.yml` 的 `config` 段。统计周期例外：`interval` 只是启动默认值，之后以面板顶部的 1m / 5m 开关为准，开关结果存进 `settings.json` 并优先于 bundle patch。
 
 凭据与代理在面板「设置」中填写，优先级由高到低：
 

@@ -14,6 +14,8 @@
       name: dsh-bsc-hot
       config:
         # Chain / window / depth of the leaderboard.
+        # `interval` is only the STARTUP bucket: the panel's 1m / 5m switch writes
+        # the live choice to settings.json and that value wins on the next start.
         chain: bsc
         interval: 5m
         limit: 20
@@ -43,12 +45,13 @@
         securityTtlMs: 600000
 
         # One request scans this many tokens under the ceiling; the board keeps
-        # the first `limit` of them by 5m volume. Max 100 (60 keeps the response
+        # the first `limit` of them by volume in the active interval (1m / 5m,
+        # whichever the panel switched to). Max 100 (60 keeps the response
         # small enough that a refresh lands in well under two seconds).
         scanLimit: 60
 
         # Second column: exactly what
-        #   gmgn-cli market trending --chain bsc --interval 5m
+        #   gmgn-cli market trending --chain bsc --interval <active interval>
         # returns (no `order_by`), narrowed to the same market-cap ceiling and
         # re-ordered by token creation time. The endpoint has no time-based sort,
         # so a wide page is fetched and sorted in the Host.
