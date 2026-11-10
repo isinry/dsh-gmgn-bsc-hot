@@ -63,12 +63,36 @@
         # (clickable) or osascript, Linux uses notify-send, Windows uses PowerShell.
         notify: true
 
+        # Notification switches. `notify` is the master; the four granular ones
+        # control the individual alert kinds. Each is persisted in settings.json
+        # ('1'/'0') the moment it is toggled in the panel, and the stored value
+        # beats this file on the next start. Switches only mute the banners --
+        # the board itself is unaffected.
+        notifyTop: true
+
         # Five-minute turnover alert: banner when a token's 5m traded value crosses
         # this USD line. One banner per crossing batch, per-token state re-arms only
         # after volume falls 10% below the line, so a token sitting on the threshold
-        # stays quiet. `volumeAlertUsd: 0` or `volumeAlert: false` disables it.
-        volumeAlert: true
+        # stays quiet. `volumeAlertUsd: 0` or `notifyVolume: false` disables it.
+        notifyVolume: true
         volumeAlertUsd: 50000
+
+        # KOL / smart-money inflow alert: banner when a board token gains at least
+        # `kolAlertDelta` KOL wallets or `smartAlertDelta` smart-money wallets
+        # between two refreshes. 10-minute cooldown per token.
+        notifyKol: true
+        kolAlertDelta: 1
+        smartAlertDelta: 2
+
+        # Starred-token (watchlist) tracker: tokens starred in the panel are kept
+        # in <DSH home>/dsh-bsc-hot/watchlist.json (max 30) and re-polled every
+        # watchRefreshMs even after they leave the board; banners fire on a price
+        # move >= watchPricePct%, a liquidity drop >= watchLiquidityPct%, or a
+        # honeypot verdict appearing. Requires `notifyWatch` (and `notify`).
+        notifyWatch: true
+        watchRefreshMs: 60000
+        watchPricePct: 20
+        watchLiquidityPct: 30
 
         # Host refresh cadence in ms for the volume column. The Web panel polls
         # at this cadence; each GMGN round trip takes ~1.5-2s, and the host keeps

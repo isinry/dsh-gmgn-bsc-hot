@@ -8,7 +8,10 @@ DSH 插件：左侧栏「BSC 热门」面板，两栏实时榜。
 - 每秒刷新，点击任意代币用系统浏览器打开 `https://gmgn.ai/bsc/token/{address}`
 - 鼠标在任意代币行停留 2 秒弹出浮窗：左侧是 DexScreener 的纯 K 线（1 分钟，默认市值轴），顶部可一键复制代币地址/名称并跳转 X，右侧是同一份 DexScreener JSON 算出的中文详情（多窗口涨跌、成交额、买卖笔数、流动性/市值、全池流动性、主池占比、市值/FDV、交易场所与报价币、池龄、官网/社媒）；浮窗由面板层单独渲染（榜单每秒重排不会导致 iframe 重载），可移入交互，离开 2 秒后淡出，按 Esc 立即关闭；DexScreener 未收录的新交易对回退为榜内数据
 - Top3 成员变动时发系统通知（macOS / Linux / Windows），macOS 通知可点击回到面板并闪烁对应代币行
+- 买卖笔数旁有**买卖比例条**（绿买红底，单边 ≥2/3 时描金提示失衡），KOL chip 旁的**聪明钱**（紫色）chip 显示聪明钱持仓数
+- 行尾 **☆ 星标**：把代币加入自选（上限 30，存 `~/.dsh/dsh-bsc-hot/watchlist.json`）；顶部 ★ 进入**自选监控**视图，脱榜的星标代币仍按周期刷新，持续显示价格/流动性/貔貅状态
 - 面板内置「设置」：API Key、GMGN Ed25519 公钥/私钥、代理都在面板里填写，缺失时自动进入引导；没有密钥对时可一键生成，生成后公私钥只读；换台电脑不用改代码
+- **通知开关**：设置页的通知卡有 5 个开关（通知总开关 / 上榜 / 放量 / KOL·聪明钱 / 自选），只控制系统推送、不影响看板显示，改动立即生效并持久化
 
 ## 过滤规则（两栏共用）
 
@@ -20,13 +23,18 @@ DSH 插件：左侧栏「BSC 热门」面板，两栏实时榜。
 | 无发行平台剔除 | `requirePlatform` | `true` |
 | 貔貅剔除 | `filterHoneypot` | `true` |
 | 5 分钟放量提醒 | `volumeAlertUsd` | `50,000` |
+| KOL 加仓提醒（≥N 个） | `kolAlertDelta` | `1` |
+| 聪明钱加仓提醒（≥N 个） | `smartAlertDelta` | `2` |
+| 自选刷新周期 | `watchRefreshMs` | `60,000` |
+| 自选价格预警 | `watchPricePct` | `±20%` |
+| 自选流动性预警 | `watchLiquidityPct` | `-30%` |
 
 ## 结构
 
 ```
-lib/index.js        Host 半：轮询 GMGN OpenAPI，暴露 top / interval / open / config / config-test / generate 路由
-lib/config-store.js 设置持久化：~/.dsh/dsh-bsc-hot/settings.json（0600，原子写）
-lib/client.js       Client 半：sidebar.panellist + main 面板、两栏渲染、设置视图
+lib/index.js        Host 半：轮询 GMGN OpenAPI，暴露 top / interval / open / config / config-test / generate / watchlist 路由
+lib/config-store.js 设置持久化：~/.dsh/dsh-bsc-hot/settings.json 与 watchlist.json（0600，原子写）
+lib/client.js       Client 半：sidebar.panellist + main 面板、两栏渲染、自选视图、设置与通知开关
 cordis.patch.yml    bundle patch，含全部可调配置
 ```
 
@@ -40,7 +48,10 @@ cordis.patch.yml    bundle patch，含全部可调配置
 - 貔貅判定用 `GET /v1/token/security`：`is_honeypot` 为真、或 `sell_tax >= 0.5` 视为貔貅；结果缓存 10 分钟，未知不等于安全。
 - 通知：macOS 优先 `terminal-notifier`（可点击，点击把地址写入系统临时目录的 `dsh-bsc-hot-focus`，客户端轮询到 `focusAt` 后切面板并高亮），否则 `osascript`；Linux 用 `notify-send`（`-u critical`）；Windows 用 PowerShell Toast。
 - 放量监听：成交额榜每次刷新检查 `volume5m`，任一（或一批）代币首次越过 `volumeAlertUsd`（默认 `$50,000`）时推一条重要通知，正文列出前 3 个 `$符号 + 金额` 与总数；同一代币回落到阈值 90% 以下才会重新触发。
-- 设置：`GET/POST /api/bsc-hot/config` 读写凭据与代理，`POST /api/bsc-hot/config/test` 用一次最小请求验证 Key，`POST /api/bsc-hot/config/generate` 在没有密钥对时生成 Ed25519 密钥对；密钥只写入 `~/.dsh/dsh-bsc-hot/settings.json`；面板通过本地路由读取当前值并默认以 `*` 掩码显示，点眼睛才展开。
+- KOL / 聪明钱监听：每轮刷新对比每个代币的 KOL 与聪明钱持仓数，单轮增量达到 `kolAlertDelta`（默认 1）或 `smartAlertDelta`（默认 2）即推送「KOL/聪明钱进场」通知（正文列出前 3 个与总数，每代币 10 分钟冷却）；重启后首轮只建基线不推送。
+- 自选监听：星标代币（含已脱榜的）按 `watchRefreshMs` 轮询 `/v1/token/info`；价格单轮变动 ≥ `watchPricePct`（默认 ±20%）、流动性跌幅 ≥ `watchLiquidityPct`（默认 30%）、或从正常翻转为貔貅时推送「自选监控预警」，每类事件 10 分钟冷却。
+- 设置：`GET/POST /api/bsc-hot/config` 读写凭据、代理与通知开关（POST 布尔字段即时生效），`POST /api/bsc-hot/config/test` 用一次最小请求验证 Key，`POST /api/bsc-hot/config/generate` 在没有密钥对时生成 Ed25519 密钥对；密钥只写入 `~/.dsh/dsh-bsc-hot/settings.json`；面板通过本地路由读取当前值并默认以 `*` 掩码显示，点眼睛才展开。
+- 自选：`GET/POST /api/bsc-hot/watchlist`（POST `{address, action: 'add'|'remove'}`），列表存 `~/.dsh/dsh-bsc-hot/watchlist.json`（0600），上限 30；星标代币进入宿主轮询队列参与安全检测，榜内行直接复用榜数据，脱榜行由宿主补拉。
 - 依赖检查随 `GET /api/bsc-hot/config` 返回：Node 版本、curl、通知通道、代理，缺什么由客户端给出对应平台的安装命令。
 
 ### Client
@@ -69,7 +80,7 @@ cordis.patch.yml    bundle patch，含全部可调配置
 
 ## 配置
 
-业务参数（`refreshMs`、`timeRefreshMs`、`scanLimit`、`notify` 等）在 `cordis.patch.yml` 的 `config` 段。统计周期例外：`interval` 只是启动默认值，之后以面板顶部的 1m / 5m 开关为准，开关结果存进 `settings.json` 并优先于 bundle patch。
+业务参数（`refreshMs`、`timeRefreshMs`、`scanLimit`、`notify`、`notifyTop`、`notifyVolume`、`notifyKol`、`notifyWatch` 等）在 `cordis.patch.yml` 的 `config` 段；四类通知的开关也可以在面板「设置」里随时切换（`settings.json` 持久化，面板操作优先于 bundle patch 默认值）。统计周期例外：`interval` 只是启动默认值，之后以面板顶部的 1m / 5m 开关为准，开关结果存进 `settings.json` 并优先于 bundle patch。
 
 凭据与代理在面板「设置」中填写，优先级由高到低：
 
