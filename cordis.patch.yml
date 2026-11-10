@@ -63,6 +63,13 @@
         # (clickable) or osascript, Linux uses notify-send, Windows uses PowerShell.
         notify: true
 
+        # Five-minute turnover alert: banner when a token's 5m traded value crosses
+        # this USD line. One banner per crossing batch, per-token state re-arms only
+        # after volume falls 10% below the line, so a token sitting on the threshold
+        # stays quiet. `volumeAlertUsd: 0` or `volumeAlert: false` disables it.
+        volumeAlert: true
+        volumeAlertUsd: 50000
+
         # Host refresh cadence in ms for the volume column. The Web panel polls
         # at this cadence; each GMGN round trip takes ~1.5-2s, and the host keeps
         # >=900ms between any two calls so bursts never trip the tier limit.
